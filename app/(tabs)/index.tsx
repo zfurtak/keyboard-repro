@@ -1,98 +1,184 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { FlashList, FlashListRef } from '@shopify/flash-list';
+import { useRef, useState } from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
+import { KeyboardAwareScrollView, useKeyboardHandler } from 'react-native-keyboard-controller';
+import { useSharedValue } from 'react-native-reanimated';
+
+interface ListItem {
+  id: string;
+  label: string;
+  value: string;
+}
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [items] = useState<ListItem[]>(
+    Array.from({ length: 50 }, (_, i) => ({
+      id: `item-${i}`,
+      label: `Item ${i + 1}`,
+      value: '',
+    }))
+  );
+  
+  // const screenHeight = Dimensions.get('window').height;
+  // const viewRef = useRef<View>(null);
+  // const bottomOffset = useRef(0);
+  const keyboardHeight = useSharedValue(0);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
+  const changeKeyboardHeight = ({height}: {height: number}) => {
+      'worklet';
+
+      keyboardHeight.set(height);
+  };
+
+  useKeyboardHandler({
+      onStart: changeKeyboardHeight,
+      onMove: changeKeyboardHeight,
+      onEnd: changeKeyboardHeight,
+  });
+
+//   const scrollToFocusedInput = () => {
+//     if (!viewRef.current) {
+//         return;
+//     }
+
+//     viewRef.current.measureInWindow((_x, _y, _width, height) => {
+//             if (keyboardHeight.get() >= 1.0) {
+//                 return;
+//             }
+//             bottomOffset.current =
+//                 screenHeight - height;
+//     });
+// };
+
+  const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
+  const listRef = useRef<FlashListRef<ListItem>>(null);
+
+  const handleItemPress = (item: ListItem) => {
+    const inputRef = inputRefs.current[item.id];
+    if (inputRef) {
+      inputRef.focus();
+    }
+  };
+
+  const handleInputFocus = (item: ListItem) => {
+    const itemIndex = items.findIndex((i) => i.id === item.id);
+    if (itemIndex !== -1 && listRef.current) {
+      listRef.current?.scrollToIndex({
+        index: itemIndex,
+        viewPosition: 0.5,
+      });
+    }
+    console.log(`Focused item: ${item.label} at index: ${itemIndex}`);
+  };
+
+  const renderItem = ({ item }: { item: ListItem }) => {
+    return (
+      <Pressable
+        style={styles.itemContainer}
+        onPress={() => handleItemPress(item)}
+        android_ripple={{ color: '#ccc' }}
+      >
+        <View style={styles.itemContent}>
+          <Text style={styles.itemLabel}>{item.label}</Text>
+          <TextInput
+            ref={(ref) => {
+              inputRefs.current[item.id] = ref;
+            }}
+            style={styles.textInput}
+            placeholder="Tap to focus"
+            placeholderTextColor="#999"
+            onFocus={() => handleInputFocus(item)}
+            onBlur={() => {
+              console.log(`Blurred item: ${item.id}`);
+            }}
+          />
+        </View>
+      </Pressable>
+    );
+  };
+
+  return (
+    <View
+    // ref={viewRef}
+      style={styles.container}
+      // onLayout={() => scrollToFocusedInput()}
+    >
+      <ThemedView style={styles.container}>
+        <ThemedView style={styles.header}>
+          <ThemedText type="title">FlashList Keyboard Test</ThemedText>
+          <ThemedText style={styles.subtitle}>
+            Tap any item to focus the input and open the keyboard
+          </ThemedText>
+        </ThemedView>
+        <FlashList
+          ref={listRef}
+          data={items}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          maintainVisibleContentPosition={{disabled: true}}
+          renderScrollComponent={
+            KeyboardAwareScrollView
+            
+        }
+        />
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+  header: {
+    padding: 20,
+    paddingTop: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  subtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  listContent: {
+    padding: 16,
+  },
+  itemContainer: {
+    marginBottom: 12,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    overflow: 'hidden',
+  },
+  itemContent: {
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  itemLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 2,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    color: '#333',
+    flex: 1,
   },
 });
